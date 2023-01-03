@@ -72,13 +72,21 @@ def list_station_trains(station_code):
     request = requests.post(urls['trains'], data={'train_station_code': station_code}, headers=request_header)
     request.encoding = 'utf-8'
     print(request.text)
-    data = json.loads(request.text)
-    print(data['data'])
-    return pd.DataFrame(data=data['data'], columns=['train_number'])
+    try:
+        data = json.loads(request.text)
+        if dict(data).keys().__contains__('data'):
+            print(data['data'])
+            return pd.DataFrame(data=data['data'], columns=['train_number'])
+        else:
+            return None
+    except Exception as e:
+        print("error", e)
+        return None
 
 
 def search_trains():
     pass
+
 
 def search_train(train_number):
     request_header = {
@@ -94,10 +102,14 @@ def search_train(train_number):
     print(request.text)
     try:
         data = json.loads(request.text)
-        print(data['data'])
-    except:
-        print("error")
-
+        if dict(data).keys().__contains__('data'):
+            print(data['data'])
+            return pd.DataFrame(data=data['data'])
+        else:
+            return None
+    except Exception as e:
+        print("error", e)
+        return None
 
 
 def get_train_info(train_no):
@@ -114,13 +126,21 @@ def get_train_info(train_no):
     request = requests.get(url, headers=request_header)
     request.encoding = 'utf-8'
     print(request.text)
-    data = json.loads(request.text)
-    print(data['data'])
+    try:
+        data = json.loads(request.text)
+        if dict(data).keys().__contains__('data'):
+            print(data['data']['data'])
+            return pd.DataFrame(data=data['data']['data'])
+        else:
+            return None
+    except Exception as e:
+        print("error", e)
+        return None
 
 
 # list_cities()
 # print(list_stations())
 # list_station_trains("BJP")
-search_train('G609')
-get_train_info('240000G6090B')
+print(search_train('G609'))
+print(get_train_info('240000G6090B'))
 
