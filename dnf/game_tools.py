@@ -1,7 +1,10 @@
+import ctypes
 import os, sys, time, random, datetime, math
 import numpy as np
 import threading
-from win32api import SetCursorPos, GetCursorPos, GetSystemMetrics, mouse_event, keybd_event
+from win32api import SetCursorPos, GetCursorPos, GetSystemMetrics, \
+    GetCurrentThreadId, \
+    mouse_event, keybd_event
 from win32gui import SetWindowPos, SetForegroundWindow, GetForegroundWindow, GetWindowRect, \
     EnumWindows, FindWindow, GetClassName, GetWindowText, \
     GetDC, ClientToScreen, \
@@ -17,20 +20,22 @@ from win32con import LOGPIXELSX, HORZRES, VERTRES, DESKTOPHORZRES, DESKTOPVERTRE
 from ctypes import windll, cast, Structure, CFUNCTYPE, POINTER, pointer, sizeof, \
     c_void_p, c_int, c_uint, c_long, c_ulong
 
-from ctypes.wintypes import HWND, LPARAM, UINT, WPARAM, DWORD, LONG, ULONG
+from ctypes.wintypes import HWND, LPARAM, UINT, WPARAM, DWORD, LONG, ULONG, LPDWORD
 
 # from pymouse import *
 # from pykeyboard import PyKeyboard
 
 from PIL import Image, ImageGrab
-from cv2 import imread, cvtColor, COLOR_BGR2GRAY, matchTemplate, TM_CCORR_NORMED, minMaxLoc
+# from cv2 import imread, cvtColor, COLOR_BGR2GRAY, matchTemplate, TM_CCORR_NORMED, minMaxLoc
 
+GetWindowThreadProcessId = windll.user32.GetWindowThreadProcessId
 MapVirtualKey = windll.user32.MapVirtualKeyA
 SetWindowsHookEx = windll.user32.SetWindowsHookExA
 UnhookWindowsHookEx = windll.user32.UnhookWindowsHookEx
 CallNextHookEx = windll.user32.CallNextHookEx
 # GetMessage = windll.user32.GetMessageW
 GetModuleHandle = windll.kernel32.GetModuleHandleW
+
 
 VK_CODE = {
     'backspace': 0x08,
@@ -277,16 +282,20 @@ def get_dpi():
     dpi_b = GetDeviceCaps(hdc, LOGPIXELSX)/0.96/100
 
     dpi = dpi_b if dpi_a == 1 else dpi_a
-    print(dpi_a, dpi_b)
+    print("get dpi", dpi_a, dpi_b)
     return dpi
 
 
 def list_windows():
     def callback(hwnd, extra):
+        process_id = DWORD(0)
+        thread_id = GetWindowThreadProcessId(hwnd, LPDWORD(process_id))
         extra[hwnd] = {
             "handle": hwnd,
             "className": GetClassName(hwnd),
             "title": GetWindowText(hwnd),
+            "processId": process_id.value,
+            "threadId": thread_id
         }
     result = {}
     EnumWindows(callback, result)
@@ -319,7 +328,9 @@ class WindowsTool(object):
         self.handle = win["handle"]
         self.className = win["className"]
         self.title = win["title"]
-        print(self.handle)
+        self.process_id = win["processId"]
+        self.thread_id = win["threadId"]
+        print("选取窗口句柄", self.handle)
         # 获取窗口上下左右顶点坐标
         self.left, self.top, self.right, self.bottom = GetWindowRect(self.handle)
         # 计算窗口大小
@@ -598,22 +609,23 @@ class WindowsTool(object):
                 print(ex)
                 raise ex
 
-    def __keyboard_listener_proc(self, nCode, wParam, lParam):
-        if nCode == HC_ACTION:
-            PKBDLLHOOKSTRUCT = POINTER(KBDLLHOOKSTRUCT)
-            param = cast(lParam, PKBDLLHOOKSTRUCT)
-            print(param.contents.vkCode)
-        return CallNextHookEx(self.__keyboard_handle, nCode, wParam, lParam)
-
     def add_keyboard_listen(self):
-        p_hook_type = HOOKPROTYPE(self.__keyboard_listener_proc)
-        self.__keyboard_handle = SetWindowsHookEx(WH_KEYBOARD_LL, p_hook_type, GetModuleHandle(None), 0)
+        def __keyboard_listener_proc(nCode, wParam, lParam):
+            pKBDLLHOOKSTRUCT = POINTER(KBDLLHOOKSTRUCT)
+            param = cast(lParam, pKBDLLHOOKSTRUCT)
+            print("keyboard_listener_proc", nCode, param.contents.vkCode)
+            # if nCode == HC_ACTION:
+            return CallNextHookEx(self.__keyboard_handle, nCode, wParam, lParam)
+
+        p_hook_type = HOOKPROTYPE(__keyboard_listener_proc)
+        self.__keyboard_handle = SetWindowsHookEx(WH_KEYBOARD_LL, p_hook_type, 0, 0)
         if not self.__keyboard_handle:
             raise WindowsError("无法启动监听键盘程序")
+        print("启动监听键盘程序, handle=%d" % self.__keyboard_handle)
+
 
     def remove_keyboard_listen(self):
         pass
-        
 
     def screenshot(self, seat=None, save_path: str = None):
         """截屏"""

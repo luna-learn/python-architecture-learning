@@ -29,15 +29,30 @@ class DnfTool(object):
 
     __name: str = "地下城与勇士"
     __game: WindowsTool = None
+    __thread = None
+    __running: bool = False
 
     def __init__(self):
         self.__game = WindowsTool(name="地下城与勇士")
         if self.__game is None:
             raise WindowsError("未找到游戏窗口: %s" % self.__name)
+
+    def run(self):
+
+        def run_thread_proc():
+            print("dnf tool running ......")
+            while self.__running:
+                time.sleep(0.001)
+
+        self.__thread = threading.Thread(target=run_thread_proc, name="dnf tool thread")
         self.__game.add_keyboard_listen()
+        self.__running = True
+        self.__thread.start()
+
 
 
 dnf = DnfTool()
+dnf.run()
 print(dnf)
 
 
